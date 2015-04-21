@@ -113,46 +113,13 @@ def dirs_and_files(root):
     files = [thing for thing in things if thing not in dirs]
     return dirs, files
 
-class PathNode(object):
-    def __init__(self, root, recurse = False):
-        self.root = root
-        self.directory_nodes = {}
-        self.file_nodes = {}
-        
-        # Get the root contents
-        self.dirs, self.files = dirs_and_files(root)
-        logging.info('node at: ' + root)
-        
-    def expand(self, dirname):
-        """ Expand the given directory for this node, generating an entry in the dictionary """
-        complete_path = os.path.join(self.root, dirname)
-        node = PathNode(os.path.join(self.root, dirname))
-        if os.path.isdir(complete_path):
-            self.directory_nodes[dirname] = node
-        else:
-            self.file_nodes[dirname] = node
-        logging.info('expanded node at ' + complete_path)
-    
-    def get_dirs(self, absolute = False):
-        
-        if absolute == False:
-            return self.dirs
-        else:
-            return [os.path.abspath(os.path.join(self.root, dirname)) for dirname in self.dirs]
-            
-    def reparse(self):
-        """ 
-        Walk through this node and any of its children, 
-        removing non-existent directories and updating files and directories 
-        """
-        pass
-
 col_tree = 0
 col_size = 1
 col_day = 2
 col_time = 3
         
 class ItemComparator(wx.dataview.TreeListItemComparator):
+    """ This class is used to determine how to sort a given column """
     def Compare(self, treelist, column, first, second):
         if column == col_tree:
             path_first = treelist.Parent.ItemToAbsPath(first)
@@ -208,16 +175,26 @@ class ItemComparator(wx.dataview.TreeListItemComparator):
             return 0
 comparator = ItemComparator()
 
+class NodeData:
+    expanded = False
+    
 class MainFrame(wx.Frame):
+    """
+    This is the main frame of the program, into which the tree is put
+    
+    Functions that start with "On" are event handlers, which you can see because event is the second argument to the function
+    """
     def __init__(self, parent, root_path = os.path.expanduser("~"), *args, **kwargs):
-        size = (800, 800)
+        size = (800, 800) #Default size
+        
+        # If preferences.json exists, load it and use it to specify the window size
         pref_path = os.path.join(app_root_path, 'preferences.json')
         if os.path.exists(pref_path):
             with open(pref_path,'r') as fp:
                 options = json.load(fp)
                 if 'size' in options:
                     size = options['size']
-        wx.Frame.__init__(self, parent, title='PathWinder', *args, size = size, **kwargs)        
+        wx.Frame.__init__(self, parent, title='Winder', *args, size = size, **kwargs)        
         
         self.make_menu_bar()
         vsizer = wx.BoxSizer(wx.VERTICAL)
@@ -253,7 +230,6 @@ class MainFrame(wx.Frame):
         self.tree.AppendColumn("Size (B)", align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
         self.tree.AppendColumn("Day", align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
         self.tree.AppendColumn("Time", align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
-        #self.tree.SetColumnWidth(col_tree, 100)
         
         self.root = self.tree.AppendItem(self.tree.GetRootItem(), self.root_path, self.fldridx, self.fldropenidx)
         
@@ -261,19 +237,67 @@ class MainFrame(wx.Frame):
         self.tree.GetView().Bind(wx.EVT_CHAR, self.OnTreeChar)
         self.Bind(wx.dataview.EVT_TREELIST_ITEM_ACTIVATED, self.OnTreeDoubleClick, self.tree)
         self.tree.GetDataView().Bind(wx.dataview.EVT_DATAVIEW_COLUMN_HEADER_CLICK, self.OnHeaderClick)
-        
-        self.rootnode = PathNode(self.root_path)
-            
-        # Expand one more level for the directories
-        for dirname in self.rootnode.dirs:
-            self.rootnode.expand(dirname)
-            node = self.rootnode.directory_nodes[dirname]
-            for dir2 in node.dirs:
-                node.expand(dir2)
+        self.Bind(wx.dataview.EVT_TREELIST_ITEM_EXPANDING, self.OnExpandTreeListLeaf, self.tree)
                 
-        self.populate_tree(self.root, self.rootnode)
+        self.populate_tree(self.root, self.root_path)
         
         self.tree.SetItemComparator(comparator)
+        self.tree.Expand(self.root)
+        
+    def populate_tree(self, parent, root_path, recurse = True):
+        """
+        Lazily populate the TreeListCtrl for given item
+        
+        parent(TreeListItem) : The parent node in the tree
+        root_path(str) : The absolute path in the OS to the 
+        recurse(bool) : Keep going deeper into the tree
+        """
+        day_fmt = " %m-%d-%y "
+        time_fmt = " %I:%M:%S %p "
+        
+        # Don't add again children if parent item is already expanded
+        # But DO recurse into directories contained by the parent directory
+        data = self.tree.GetItemData(parent)
+        if data is None or data.expanded == False:
+        
+            # We are going to populate!
+            
+            # Get the directories and files contained in this folder
+            dirs, files = dirs_and_files(root_path)
+            
+            for dirname in dirs:
+                child = self.tree.AppendItem(parent, dirname, self.fldridx, self.fldropenidx)
+                self.tree.SetItemText(child, col_size, "")
+                complete_path = os.path.join(root_path, dirname)
+                mtime = time.localtime(os.path.getmtime(complete_path))
+                self.tree.SetItemText(child, col_day, str(time.strftime(day_fmt, mtime)))
+                self.tree.SetItemText(child, col_time, str(time.strftime(time_fmt, mtime)))
+            
+            for file in files:
+                child = self.tree.AppendItem(parent, file, self.fileidx, self.fileidx)
+                complete_path = os.path.join(root_path, file)
+                filesize_kb = os.path.getsize(complete_path)
+                self.tree.SetItemText(child, col_size, '{:,}'.format(filesize_kb))
+                mtime = time.localtime(os.path.getmtime(complete_path))
+                self.tree.SetItemText(child, col_day, str(time.strftime(day_fmt, mtime)))
+                self.tree.SetItemText(child, col_time, str(time.strftime(time_fmt, mtime)))
+            
+        # The top level has been populated if needed, now recurse into 
+        # directories and populate them one more level
+        if recurse:
+            # Visit all the children of the parent
+            item = self.tree.GetFirstChild(parent)
+            while item.IsOk():
+                if self.ItemIsDirectory(item):
+                    # Go down one more level
+                    self.populate_tree(item, self.ItemToAbsPath(item), recurse = False)
+                # Go to next sibling in this directory
+                item = self.tree.GetNextSibling(item)
+            
+        # Set the flag telling you that the parent has been populated
+        data = NodeData()
+        data.expanded = True
+        self.tree.SetItemData(parent, data)
     
     def OnHeaderClick(self, event):
         sorted, col, ascendingOrder = self.tree.GetSortColumn()
@@ -299,6 +323,12 @@ class MainFrame(wx.Frame):
         
     def ItemIsDirectory(self, item):
         return os.path.isdir(self.ItemToAbsPath(item))
+        
+    def OnExpandTreeListLeaf(self, event):
+        items = self.tree.GetSelections()
+        if items:
+            fname = self.tree.GetItemText(items[0], col_tree)
+            self.populate_tree(items[0], self.ItemToAbsPath(items[0]))
         
     def OnTreeDoubleClick(self, event):
         if 'win' in sys.platform:
@@ -620,31 +650,7 @@ class MainFrame(wx.Frame):
         else:
             wx.LogMessage("You pressed a non ASCII key '%c'"%keycode)
             
-    def populate_tree(self, parent, leaf):
-        day_fmt = "%m-%d-%y"
-        time_fmt = "%I:%M:%S %p"
-        for dirname in leaf.dirs:
-            complete_path = os.path.join(leaf.root, dirname)
-            child = self.tree.AppendItem(parent, dirname, self.fldridx, self.fldropenidx)
-            self.tree.SetItemText(child, col_size, "")
-            mtime = time.localtime(os.path.getmtime(complete_path))
-            self.tree.SetItemText(child, col_day, str(time.strftime(day_fmt, mtime)))
-            self.tree.SetItemText(child, col_time, str(time.strftime(time_fmt, mtime)))
-            
-            # Recurse for populated nodes
-            if dirname in leaf.directory_nodes:
-                self.populate_tree(child, leaf.directory_nodes[dirname])
-        
-        for file in leaf.files:
-            child = self.tree.AppendItem(parent, file, self.fileidx, self.fileidx)
-            complete_path = os.path.join(leaf.root, file)
-            filesize_kb = os.path.getsize(complete_path)
-            self.tree.SetItemText(child, col_size, '{:,}'.format(filesize_kb))
-            mtime = time.localtime(os.path.getmtime(complete_path))
-            self.tree.SetItemText(child, col_day, str(time.strftime(day_fmt, mtime)))
-            self.tree.SetItemText(child, col_time, str(time.strftime(time_fmt, mtime)))
-                
-        self.tree.Expand(self.root)
+    
     
     def OnFileCopy(self, event = None):
         source_items = self.GetMarkedItems()
