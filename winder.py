@@ -640,6 +640,26 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
         self.build_tree()
         
+    def OnFileNew(self, event):
+        """ Event handler to make a new file """
+        items = self.tree.GetSelections()
+        if len(items) != 1: 
+            ErrorMessage("Must select one thing in tree")
+        path = self.ItemToAbsPath(items[0])
+        root = os.path.dirname(path)
+        dlg = wx.TextEntryDialog(
+                self, 'New file to be added to ' + root,
+                'New directory', '')
+        if dlg.ShowModal() == wx.ID_OK:
+            fname = os.path.join(root, dlg.GetValue())
+        dlg.Destroy()
+        if os.path.exists(fname):
+            ErrorMessage("Cannot create file [{fname:s}] as it already exists".format(fname = fname))
+        # Make the file
+        with open(fname, 'w'):
+            pass
+        self.build_tree()
+        
     def OnLoadBookmark(self, event, path):
         self.root_path = path
         self.build_tree()
@@ -694,8 +714,6 @@ class MainFrame(wx.Frame):
             wx.LogMessage("You pressed '%c'"%keycode)
         else:
             wx.LogMessage("You pressed a non ASCII key '%c'"%keycode)
-            
-    
     
     def OnFileCopy(self, event = None):
         source_items = self.GetMarkedItems()
@@ -938,14 +956,16 @@ class MainFrame(wx.Frame):
         menu.Rename = wx.MenuItem(menu, -1, "&Rename", "", wx.ITEM_NORMAL)
         menu.Move = wx.MenuItem(menu, -1, "&Move", "", wx.ITEM_NORMAL)
         menu.Erase = wx.MenuItem(menu, -1, "&Erase", "", wx.ITEM_NORMAL)
+        menu.New = wx.MenuItem(menu, -1, "&New", "", wx.ITEM_NORMAL)
         menu.Attrib = wx.MenuItem(menu, -1, "&Attrib (WIP)", "", wx.ITEM_NORMAL)
-        for el in [menu.Find, menu.Copy, menu.Rename, menu.Move, menu.Erase, menu.Attrib]:
+        for el in [menu.Find, menu.Copy, menu.Rename, menu.Move, menu.New, menu.Erase, menu.Attrib]:
             if wx_phoenix:
                 menu.Append(el)
             else:
                 menu.AppendItem(el)
         parent.Bind(wx.EVT_MENU, parent.OnFileCopy, menu.Copy)
         parent.Bind(wx.EVT_MENU, parent.OnFileMove, menu.Move)
+        parent.Bind(wx.EVT_MENU, parent.OnFileNew, menu.New)
         parent.Bind(wx.EVT_MENU, parent.OnRemoveFile, menu.Erase)
         parent.Bind(wx.EVT_MENU, parent.OnRenameFile, menu.Rename)
         return menu
