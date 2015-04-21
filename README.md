@@ -32,9 +32,9 @@ Packaging
 ---------
 At the command prompt:
 
-``python setup.py build``
+``python setup.py``
 
-Find the output in the PathWinder directory
+Find the output in the ``winder`` directory
 
 License
 -------
