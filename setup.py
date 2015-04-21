@@ -13,7 +13,7 @@ options = {
     "path" : []
 }
 
-sys.argv += ['build','--build-exe=PathWinder']
+sys.argv += ['build','--build-exe=winder']
 
 includes = options['includes']
 this_folder = os.path.dirname(os.path.abspath(__file__))
@@ -38,10 +38,10 @@ GUI2Exe_Target_1 = Executable(
 
 setup(
     
-    version = '0.0.0',
-    description = "PathWinder",
-    author = "Ian Bell et al.",
-    name = "Path Winder",
+    version = '0.0.1',
+    description = "A graphical file manager powered by wxpython",
+    author = "Ian H. Bell et al.",
+    name = "winder",
     
     options = {"build_exe": {"include_files": include_files,
                              "includes": includes,
@@ -56,6 +56,6 @@ setup(
     
 if sys.platform == "win32":
     import subprocess
-    subprocess.call(r'upx/upx.exe PathWinder/*.*')
-    subprocess.call(r'"C:\Program Files\7-Zip\7z" a PathWinder.zip PathWinder')
+    subprocess.call(r'upx/upx.exe winder/*.*')
+    subprocess.call(r'"C:\Program Files\7-Zip\7z" a winder.zip winder')
     #shutil.rmtree('PathWinder')
