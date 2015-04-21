@@ -895,22 +895,24 @@ class MainFrame(wx.Frame):
         menu = wx.Menu()
             
         apps_json_path = os.path.join(app_root_path, 'apps.json')
-        with open(apps_json_path, 'r') as fp:
-            apps = json.load(fp)
-            
-        for app in apps:
-            el = wx.MenuItem(menu, -1, app['name'], "", wx.ITEM_NORMAL)
-            if wx_phoenix:
-                menu.Append(el)
-            else:
-                menu.AppendItem(el)
-            parent.Bind(wx.EVT_MENU, lambda evt, menu = el: parent.OnApplicationLaunch(evt, menu), el)
+        if os.path.exists(apps_json_path):
+            with open(apps_json_path, 'r') as fp:
+                apps = json.load(fp)
+                
+            for app in apps:
+                el = wx.MenuItem(menu, -1, app['name'], "", wx.ITEM_NORMAL)
+                if wx_phoenix:
+                    menu.Append(el)
+                else:
+                    menu.AppendItem(el)
+                parent.Bind(wx.EVT_MENU, lambda evt, menu = el: parent.OnApplicationLaunch(evt, menu), el)
+            self.apps = apps
         menu.Append(wx.MenuItem(menu, -1, "", "", wx.ITEM_SEPARATOR))
         menu.ModifyApplications = wx.MenuItem(menu, -1, "Modify...", "", wx.ITEM_NORMAL)
         menu.Append(menu.ModifyApplications)
         
         parent.Bind(wx.EVT_MENU, parent.OnModifyApplications, menu.ModifyApplications)
-        self.apps = apps
+        
         return menu
         
     def make_menu_bar(self):
