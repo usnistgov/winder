@@ -12,6 +12,30 @@ Being a 16-bit program, PathMinder cannot be used on 32-bit or 64-bit windows ve
 
 It allows for applications to be set up that can be easily accessed with two keystrokes - for instance A, S could be configured to open the selected file in SciTE (my text editor of choice).
 
+Requirements
+------------
+This program has very limited external requirements:
+
+- python (for now, python 2.7 is recommended, but in principle 3.x should be ok)
+- wxpython (MUST be phoenix branch, download a wheel from http://wxpython.org/Phoenix/snapshot-builds/, install with ``pip``)
+- cx_Freeze (for packaging script into executable)
+
+It is recommended (but not required) that you use Anaconda to create an environment into which you install the phoenix version of wxpython so that you can have "classic" and "phoenix" versions of wxpython co-existing on your computer
+
+Use
+---
+At the command prompt:
+
+``python winder.py``
+
+Packaging
+---------
+At the command prompt:
+
+``python setup.py build``
+
+Find the output in the PathWinder directory
+
 License
 -------
 Public-domain - see LICENSE.txt
