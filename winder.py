@@ -227,9 +227,10 @@ class MainFrame(wx.Frame):
         
         # create some columns
         self.tree.AppendColumn("Main column", align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
-        self.tree.AppendColumn("Size (B)", align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
-        self.tree.AppendColumn("Day", align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
-        self.tree.AppendColumn("Time", align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
+        self.tree.AppendColumn("Size (B)", width = wx.COL_WIDTH_AUTOSIZE, align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
+        self.tree.AppendColumn("Day", width = wx.COL_WIDTH_AUTOSIZE, align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
+        self.tree.AppendColumn("Time", width = wx.COL_WIDTH_AUTOSIZE, align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
+        self.tree.AppendColumn("", width = 20, align = wx.ALIGN_RIGHT, flags = wx.COL_SORTABLE|wx.COL_RESIZABLE)
         
         self.root = self.tree.AppendItem(self.tree.GetRootItem(), self.root_path, self.fldridx, self.fldropenidx)
         
@@ -243,6 +244,9 @@ class MainFrame(wx.Frame):
         
         self.tree.SetItemComparator(comparator)
         self.tree.Expand(self.root)
+        
+        for col in [col_size, col_day, col_time]:
+            self.tree.SetColumnWidth(col, self.tree.GetColumnWidth(col) + 5)
         
     def populate_tree(self, parent, root_path, recurse = True):
         """
