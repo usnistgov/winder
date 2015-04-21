@@ -20,5 +20,4 @@ Screenshot
 ----------
 N.B. - might not always be up to date
 
-.. |travis| image:: screenshot.png
-    :alt: screenshot
+![screenshot](screenshot.png)
