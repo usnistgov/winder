@@ -14,6 +14,7 @@ import sys
 import logging
 import platform
 import subprocess
+from subprocess import CREATE_NEW_CONSOLE
 
 if hasattr(sys, 'frozen'):
     app_root_path = os.path.dirname(sys.executable) 
@@ -24,8 +25,8 @@ logging.basicConfig(filename=os.path.join(app_root_path, 'log.log'), filemode = 
 logger = logging.getLogger()
 
 class ModifyApplicationsDialog(wx.Dialog):
-    def __init__(self, *args, **kwargs):
-        wx.Dialog.__init__(self, title = 'Set Bookmarks',  style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER, *args, **kwargs)
+    def __init__(self, **kwargs):
+        wx.Dialog.__init__(self, None, title = 'Set Bookmarks',  style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER, **kwargs)
         vsizer = wx.BoxSizer(wx.VERTICAL)
         
         self.grid = wx.grid.Grid(self)
@@ -35,7 +36,6 @@ class ModifyApplicationsDialog(wx.Dialog):
         self.grid.SetColLabelValue(0, 'Name')
         self.grid.SetColLabelValue(1, 'Path')
         self.grid.SetColLabelValue(2, 'Arguments')
-        
         
         self.OK = wx.Button(self, label = 'Write')
         vsizer.Add(self.grid, flag = wx.EXPAND|wx.ALIGN_CENTER_HORIZONTAL)
@@ -65,8 +65,9 @@ class ModifyApplicationsDialog(wx.Dialog):
         self.Close()
 
 class ModifyBookmarksDialog(wx.Dialog):
-    def __init__(self, *args, **kwargs):
-        wx.Dialog.__init__(self, title = 'Set Bookmarks', *args, **kwargs)
+    """ A dialog for modifying commonly used bookmarks """
+    def __init__(self, **kwargs):
+        wx.Dialog.__init__(self, None, title = 'Set Bookmarks', **kwargs)
         vsizer = wx.BoxSizer(wx.VERTICAL)
         
         self.grid = wx.grid.Grid(self)
@@ -97,6 +98,46 @@ class ModifyBookmarksDialog(wx.Dialog):
                 bookmarks.append(dict(name = self.grid.GetCellValue(i, 0), path = self.grid.GetCellValue(i, 1)))
             json.dump(bookmarks, fp, indent = 4)
         self.Close()
+        
+class RunExecutableDialog(wx.Dialog):
+    def __init__(self, path, new_console = True, **kwargs):
+        wx.Dialog.__init__(self, None, title = 'Configure executable', **kwargs)
+        
+        sizer = wx.FlexGridSizer(cols = 2)
+        self.path_label = wx.StaticText(self, label = 'Working directory:')
+        self.path = wx.TextCtrl(self, value = path)
+        self.new_console_label = wx.StaticText(self, label = 'New console:')
+        self.new_console = wx.CheckBox(self)
+        self.new_console.SetValue(new_console)
+        self.arguments_label = wx.StaticText(self, label = 'Arguments:')
+        self.arguments = wx.TextCtrl(self)
+        self.OK = wx.Button(self, wx.ID_OK, label = 'OK')
+        self.CANCEL = wx.Button(self, wx.ID_CANCEL, label = 'Cancel')
+        sizer.AddMany([(self.path_label,0), (self.path,1), 
+                      (self.new_console_label,0), (self.new_console,1), 
+                      (self.arguments_label,0), (self.arguments,1), 
+                      (self.OK,0), (self.CANCEL,1),
+                      ])
+        self.SetSizer(sizer)
+        sizer.Layout()
+        self.Fit()
+        
+        # Bind a key-press event to all objects to get enter press 
+        for child in self.GetChildren():
+            child.Bind(wx.EVT_KEY_UP,  self.OnKeyPress)
+        
+    def OnKeyPress(self,event=None):
+        """ cancel if Escape key is pressed """
+        event.Skip()
+        if event.GetKeyCode() == wx.WXK_RETURN:
+            self.EndModal(wx.ID_OK)
+        
+    def get(self):
+        path = os.path.normpath(self.path.GetValue())
+        if not os.path.exists(path):
+            ErrorMessage('Working directory [{path:s}] does not exist'.format(path = path))
+            return None, None, None
+        return path, self.new_console.Value, self.arguments.GetValue()
         
 def ErrorMessage(msg):
     dlg = wx.MessageDialog(None, msg)
@@ -768,13 +809,6 @@ class MainFrame(wx.Frame):
             return
         file_path = os.path.normpath(self.ItemToAbsPath(items[0]))
         name = menu.GetLabel()
-        
-        # See http://stackoverflow.com/a/12144179/1360263
-        # define a command that starts new terminal
-        if platform.system() == "Windows":
-            new_window_command = "cmd /S /C"
-        else:  #XXX this can be made more portable
-            new_window_command = "x-terminal-emulator -e".split()
             
         app_path = None
         for app in self.apps:
@@ -784,11 +818,22 @@ class MainFrame(wx.Frame):
         if app_path is None:
             ErrorMessage("Could not match app name: " + name)
             return
-        command = ' '.join([app_path, file_path])
-        call_string = new_window_command + '"' + command + '"'
+            
+        # See http://stackoverflow.com/a/12144179/1360263
+        # define a command that starts new terminal
+        if platform.system() == "Windows":
+            new_window_command = "cmd /S /C "
+        else:  #XXX this can be made more portable
+            new_window_command = "x-terminal-emulator -e".split()
+            
+        command = ' '.join(['"' + p + '"' for p in [app_path, file_path]])
+        
+        call_string = new_window_command + '" ' + command + ' "'
+        #print 'calling', call_string
         subprocess.Popen(call_string, cwd = os.path.dirname(file_path), shell = False)
         
     def OnRunExecutable(self, event):
+    
         items = self.tree.GetSelections()
         if len(items) != 1:
             ErrorMessage("One file must be selected")
@@ -802,21 +847,30 @@ class MainFrame(wx.Frame):
         else:  #XXX this can be made more portable
             new_window_command = "x-terminal-emulator -e".split()
         
-        dlg = wx.TextEntryDialog(
-                self, 'Additional command line arguments',
-                'Arguments', "")
-                
+        dlg = RunExecutableDialog(os.path.dirname(exe_path), False)
         if dlg.ShowModal() == wx.ID_OK:
-            arguments = dlg.GetValue().split(' ')
+            path, new_console, arguments = dlg.get()
+            dlg.Destroy()
+            # Check if the output path is invalid
+            if path is None and new_console is None:
+                return
         else:
-            arguments = []
-        dlg.Destroy()
+            dlg.Destroy()
+            return
+        
         if arguments:
             arguments = ' '.join(['"' + arg + '"' for arg in arguments if arg])
-                
-            call_string = new_window_command + '""' + exe_path + '"' + arguments + '"'
-            from subprocess import CREATE_NEW_CONSOLE
-            subprocess.Popen(call_string, cwd = os.path.dirname(exe_path), shell = False, creationflags=CREATE_NEW_CONSOLE)
+        else:
+            arguments = ''
+            
+        exe_path = '"' + exe_path + '"'
+            
+        call_string = new_window_command + '" ' + exe_path + arguments + ' "'
+        if new_console:
+            creationflags = CREATE_NEW_CONSOLE
+        else:
+            creationflags = 0
+        subprocess.Popen(call_string, cwd = path, shell = False, creationflags=creationflags)
         
     def make_options_menu(self, parent):
         """
@@ -827,7 +881,7 @@ class MainFrame(wx.Frame):
             if os.path.exists(book_path):
                 bookmarks = json.load(open(book_path, 'r'))
                 for i,mark in enumerate(bookmarks):
-                    menu.BookMarks[i].SetText(str(i+1)+ ': ' + mark['name'])
+                    menu.BookMarks[i].SetText('&' + str(i+1)+ ': ' + mark['name'])
                     parent.Bind(wx.EVT_MENU, lambda evt, path = mark['path']: parent.OnLoadBookmark(evt, path), menu.BookMarks[i])
                     
         menu = wx.Menu()
