@@ -828,8 +828,6 @@ class MainFrame(wx.Frame):
                     
         menu = wx.Menu()
         menu.Refresh = wx.MenuItem(menu, -1, "&Refresh\tF5", "", wx.ITEM_NORMAL)
-        menu.FullParse = wx.MenuItem(menu, -1, "Parse &Full Tree", "", wx.ITEM_CHECK)
-        menu.FullParse.Check(False)
         menu.sep = wx.MenuItem(menu, -1, "", "", wx.ITEM_SEPARATOR)
         menu.book = wx.MenuItem(menu, -1, "**Bookmarks**", "", wx.ITEM_NORMAL)
         menu.BookMarks = []
@@ -837,7 +835,7 @@ class MainFrame(wx.Frame):
             menu.BookMarks.append(wx.MenuItem(menu, -1, " ", " ", wx.ITEM_NORMAL))
         menu.ModifyBookmarks = wx.MenuItem(menu, -1, "Modify...", "", wx.ITEM_NORMAL)
         
-        for el in [menu.Refresh, menu.FullParse, menu.sep, menu.book] + menu.BookMarks + [menu.ModifyBookmarks]:
+        for el in [menu.Refresh, menu.sep, menu.book] + menu.BookMarks + [menu.ModifyBookmarks]:
             if wx_phoenix:
                 menu.Append(el)
             else:
