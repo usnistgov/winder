@@ -45,3 +45,9 @@ Screenshot
 N.B. - might not always be up to date
 
 ![screenshot](screenshot.png)
+
+Explorer Integration
+--------------------
+In order to make winder accessible in Windows Explorer, open regedit, navigate to HKEY_CLASSES_ROOT\Directory\shell, make a key called "winder..." or whatever you want, and within that make a key called ``command`` which you make the path to the executable with a %1 at the end to pass the path to winder
+
+
