@@ -32,7 +32,7 @@ GUI2Exe_Target_1 = Executable(
     script = os.path.join(this_folder, "winder.py"),
     initScript = None,
     base = base,
-    targetName = "PathWinder.exe",
+    targetName = "winder.exe",
     icon = None
     )
 
