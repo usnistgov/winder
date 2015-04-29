@@ -33,7 +33,7 @@ GUI2Exe_Target_1 = Executable(
     initScript = None,
     base = base,
     targetName = "winder.exe",
-    icon = None
+    icon = 'winder.ico'
     )
 
 setup(

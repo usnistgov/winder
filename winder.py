@@ -840,14 +840,20 @@ class MainFrame(wx.Frame):
         # See http://stackoverflow.com/a/12144179/1360263
         # define a command that starts new terminal
         if platform.system() == "Windows":
-            new_window_command = "cmd /S /C "
+            if hasattr(sys, 'frozen'):
+                new_window_command = "cmd /C "
+            else:
+                new_window_command = ""
         else:  #XXX this can be made more portable
             new_window_command = "x-terminal-emulator -e".split()
             
         command = ' '.join(['"' + p + '"' for p in [app_path, file_path]])
         
-        call_string = new_window_command + '" ' + command + ' "'
-        #print 'calling', call_string
+        #if hasattr(sys, 'frozen'):
+        #    call_string = new_window_command + '" ' + command + ' "'
+        #else:
+        call_string = command
+        print 'calling', call_string
         subprocess.Popen(call_string, cwd = os.path.dirname(file_path), shell = False)
         
     def OnRunExecutable(self, event):
