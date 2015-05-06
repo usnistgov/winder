@@ -1056,6 +1056,8 @@ if __name__=='__main__':
     
     app = wx.App()
     
+    locale = wx.Locale(wx.LANGUAGE_ENGLISH)
+    
     if len(sys.argv) == 2 and os.path.isdir(sys.argv[1]):
         frame = MainFrame(None, root_path = sys.argv[1])
     else:
