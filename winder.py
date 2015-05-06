@@ -811,12 +811,12 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
     
     def OnModifyBookmarks(self, event = None):
-        dlg = ModifyBookmarksDialog(None)
+        dlg = ModifyBookmarksDialog()
         dlg.ShowModal()
         dlg.Destroy()
         
     def OnModifyApplications(self, event = None):
-        dlg = ModifyApplicationsDialog(None)
+        dlg = ModifyApplicationsDialog()
         dlg.ShowModal()
         dlg.Destroy()
     
