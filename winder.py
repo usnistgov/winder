@@ -183,7 +183,7 @@ class ItemComparator(wx.dataview.TreeListItemComparator):
                     return 1
             except ValueError as VE:
                 print(treelist.GetItemText(first, 0), treelist.GetItemText(first, column),treelist.GetItemText(second, column))
-                print VE
+                print(VE)
                 return 0
 
         elif column == col_size:
@@ -313,8 +313,11 @@ class MainFrame(wx.Frame):
             for dirname in dirs:
                 child = self.tree.AppendItem(parent, dirname, self.fldridx, self.fldropenidx)
                 self.tree.SetItemText(child, col_size, "")
-                complete_path = os.path.join(root_path, dirname)
-                mtime = time.localtime(os.path.getmtime(complete_path))
+                try:
+                    complete_path = os.path.join(root_path, dirname)
+                    mtime = time.localtime(os.path.getmtime(complete_path))
+                except PermissionError:
+                    continue
                 self.tree.SetItemText(child, col_day, str(time.strftime(day_fmt, mtime)))
                 self.tree.SetItemText(child, col_time, str(time.strftime(time_fmt, mtime)))
             
@@ -690,7 +693,7 @@ class MainFrame(wx.Frame):
                 ErrorMessage("Unable to import win32api")
                 return
         else:
-            print 'no such thing as drive on this platform'
+            print('no such thing as drive on this platform')
 
         drives = win32api.GetLogicalDriveStrings()
         drives = drives.split('\000')[:-1]
@@ -774,7 +777,7 @@ class MainFrame(wx.Frame):
             new_path = os.path.join(new_dir, old_fname)
             paths.append((old_path, new_path))
         old, new = zip(*paths)
-        print old, new
+        print(old, new)
         if len(paths) != len(set(new)):
             ErrorMessage("At least two destination files have the same name")
             return
@@ -853,7 +856,7 @@ class MainFrame(wx.Frame):
         #    call_string = new_window_command + '" ' + command + ' "'
         #else:
         call_string = command
-        print 'calling', call_string
+        print('calling', call_string)
         subprocess.Popen(call_string, cwd = os.path.dirname(file_path), shell = False)
         
     def OnRunExecutable(self, event):
