@@ -346,6 +346,95 @@ class MainFrame(wx.Frame):
         data = NodeData()
         data.expanded = True
         self.tree.SetItemData(parent, data)
+        
+    def refresh_tree(self, parent, root_path, recurse = True):
+        """
+        Lazily refresh the TreeListCtrl for given item
+        
+        parent(TreeListItem) : The parent node in the tree
+        root_path(str) : The absolute path in the OS to the 
+        recurse(bool) : Keep going deeper into the tree
+        """
+        day_fmt = " %m-%d-%y "
+        time_fmt = " %I:%M:%S %p "
+        
+        # We are going to populate!
+        
+        # Get the directories and files contained in this folder
+        dirs, files = dirs_and_files(root_path)
+        abspaths = [os.path.join(root_path, f) for f in files] + [os.path.join(root_path, d) for d in dirs]
+        
+        # Current children of this node
+        item = self.tree.GetFirstChild(parent)
+        children = []
+        while item.IsOk():
+            # Add this child
+            children.append(item)
+            # Go to next sibling in this directory
+            item = self.tree.GetNextSibling(item)
+        
+        # First remove things that no longer exist
+        for child in children:
+            if self.ItemToAbsPath(child) not in abspaths:
+                self.tree.DeleteItem(child)
+                
+        # Current children of this node
+        item = self.tree.GetFirstChild(parent)
+        children = []
+        while item.IsOk():
+            # Add this child
+            children.append(item)
+            # Go to next sibling in this directory
+            item = self.tree.GetNextSibling(item)
+        children_paths = [self.ItemToAbsPath(child) for child in children]
+        
+        # Then add things that are new
+        for dirname in dirs:
+            complete_path = os.path.join(root_path, dirname)
+            try:
+                mtime = time.localtime(os.path.getmtime(complete_path))
+            except PermissionError:
+                continue
+            
+            if complete_path not in children_paths:
+                child = self.tree.AppendItem(parent, dirname, self.fldridx, self.fldropenidx)
+            else:
+                child = children[children_paths.index(complete_path)]
+                
+            self.tree.SetItemText(child, col_size, "")
+            self.tree.SetItemText(child, col_day, str(time.strftime(day_fmt, mtime)))
+            self.tree.SetItemText(child, col_time, str(time.strftime(time_fmt, mtime)))
+        
+        for file in files:
+            complete_path = os.path.join(root_path, file)
+            
+            if complete_path not in children_paths:
+                child = self.tree.AppendItem(parent, file, self.fileidx, self.fileidx)
+            else:
+                child = children[children_paths.index(complete_path)]
+            
+            filesize_kb = os.path.getsize(complete_path)
+            self.tree.SetItemText(child, col_size, '{:,}'.format(filesize_kb))
+            mtime = time.localtime(os.path.getmtime(complete_path))
+            self.tree.SetItemText(child, col_day, str(time.strftime(day_fmt, mtime)))
+            self.tree.SetItemText(child, col_time, str(time.strftime(time_fmt, mtime)))
+            
+        # The top level has been populated if needed, now recurse into 
+        # directories and populate them one more level
+        if recurse:
+            # Visit all the children of the parent
+            item = self.tree.GetFirstChild(parent)
+            while item.IsOk():
+                if self.ItemIsDirectory(item):
+                    # Go down one more level
+                    self.populate_tree(item, self.ItemToAbsPath(item), recurse = False)
+                # Go to next sibling in this directory
+                item = self.tree.GetNextSibling(item)
+            
+        # Set the flag telling you that the parent has been populated
+        data = NodeData()
+        data.expanded = True
+        self.tree.SetItemData(parent, data)
     
     def OnHeaderClick(self, event):
         sorted, col, ascendingOrder = self.tree.GetSortColumn()
@@ -555,6 +644,7 @@ class MainFrame(wx.Frame):
         if len(items) != 1: 
             ErrorMessage("Must select one thing in tree")
             return
+        parent = self.tree.GetItemParent(items[0])
         path = self.ItemToAbsPath(items[0])
         if not self.ItemIsDirectory(items[0]): 
             ErrorMessage("Selected entity is not a directory")
@@ -564,25 +654,27 @@ class MainFrame(wx.Frame):
         except OSError:
             ErrorMessage("Selected directory is not empty")
             
-        self.build_tree()
+        self.refresh_tree(parent, self.ItemToAbsPath(parent))
         
     def OnRemoveFile(self, event):
-        items = self.tree.GetSelections()
+        items = self.GetMarkedItems()
         if len(items) == 0: 
             ErrorMessage("Must select at least one file in tree")
             return
         if any([self.ItemIsDirectory(item) for item in items]):
             ErrorMessage("Cannot remove directories")
             return
-        
+        parents = []
         for item in items:
+            parents.append(self.tree.GetItemParent(item))
             path = self.ItemToAbsPath(item)
             try:
                 os.remove(path)
             except OSError:
                 ErrorMessage("Cannot remove file" + path)
             
-        self.build_tree()
+        for parent in set(parents):
+            self.refresh_tree(parent, self.ItemToAbsPath(parent))
     
     def OnRenameFile(self, event):
         items = self.tree.GetSelections()
@@ -590,18 +682,19 @@ class MainFrame(wx.Frame):
             ErrorMessage("Must select one thing in tree")
             return
         fname = self.tree.GetItemText(items[0],col_tree)
+        parent = self.tree.GetItemParent(items[0])
         path = self.ItemToAbsPath(items[0])
         if self.ItemIsDirectory(items[0]): 
             ErrorMessage("Selected entity is not a file")
             return
         dlg = wx.TextEntryDialog(
                 self, 'New file name',
-                'Was' + path, fname)
+                'Was ' + path, fname)
                 
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 os.rename(path, os.path.join(os.path.dirname(path), dlg.GetValue()))
-                self.build_tree()
+                self.refresh_tree(parent, self.ItemToAbsPath(parent))
             except OSError:
                 ErrorMessage("Rename target already exists")
         dlg.Destroy()
@@ -612,6 +705,7 @@ class MainFrame(wx.Frame):
             ErrorMessage("Must select one thing in tree")
             return
         fname = self.tree.GetItemText(items[0],col_tree)
+        parent = self.tree.GetItemParent(items[0])
         path = self.ItemToAbsPath(items[0])
         if not self.ItemIsDirectory(items[0]): 
             ErrorMessage("Selected entity is not a directory")
@@ -623,7 +717,7 @@ class MainFrame(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 os.rename(path, os.path.join(os.path.dirname(path),dlg.GetValue()))
-                self.build_tree()
+                self.refresh_tree(parent, self.ItemToAbsPath(parent))
             except OSError:
                 ErrorMessage("Rename target already exists")
         dlg.Destroy()
@@ -634,14 +728,26 @@ class MainFrame(wx.Frame):
         if len(items) != 1: 
             ErrorMessage("Must select one thing in tree")
         path = self.ItemToAbsPath(items[0])
-        root = os.path.dirname(path)
+        if os.path.isdir(path):
+            # Put it in the directory selected
+            root = path
+            parent = items[0]
+        else:
+            # Put it in the containing folder
+            root = os.path.dirname(path)
+            parent = self.tree.GetItemParent(items[0])
+            
         dlg = wx.TextEntryDialog(
                 self, 'New directory to be added to ' + root,
                 'New directory', '')
         if dlg.ShowModal() == wx.ID_OK:
-            os.mkdir(os.path.join(root, dlg.GetValue()))
+            fname = os.path.join(root, dlg.GetValue())
+            if os.path.exists(fname):
+                ErrorMessage("Cannot create directory [{fname:s}] as it already exists".format(fname = fname))
+            else:
+                os.mkdir(fname)
+                self.refresh_tree(parent, self.ItemToAbsPath(parent))
         dlg.Destroy()
-        self.build_tree()
         
     def OnFileNew(self, event):
         """ Event handler to make a new file """
@@ -649,19 +755,31 @@ class MainFrame(wx.Frame):
         if len(items) != 1: 
             ErrorMessage("Must select one thing in tree")
         path = self.ItemToAbsPath(items[0])
-        root = os.path.dirname(path)
+        if os.path.isdir(path):
+            # Put it in the directory selected
+            root = path
+            parent = items[0]
+        else:
+            # Put it in the containing folder
+            root = os.path.dirname(path)
+            parent = self.tree.GetItemParent(items[0])
+        
         dlg = wx.TextEntryDialog(
                 self, 'New file to be added to ' + root,
                 'New directory', '')
         if dlg.ShowModal() == wx.ID_OK:
             fname = os.path.join(root, dlg.GetValue())
+        else:
+            fname = None
         dlg.Destroy()
+        if fname is None:
+            return
         if os.path.exists(fname):
             ErrorMessage("Cannot create file [{fname:s}] as it already exists".format(fname = fname))
         # Make the file
         with open(fname, 'w'):
             pass
-        self.build_tree()
+        self.refresh_tree(parent, self.ItemToAbsPath(parent))
         
     def OnLoadBookmark(self, event, path):
         self.root_path = path
@@ -732,8 +850,9 @@ class MainFrame(wx.Frame):
             return
         new_dir = self.ItemToAbsPath(items[0])
         # Prepare paths (to make sure we don't have collision)
-        paths = []
+        paths, parents = [], []
         for item in source_items:
+            parents.append(self.tree.GetItemParent(item))
             old_path = self.ItemToAbsPath(item)
             old_fname = self.tree.GetItemText(item, col_tree)
             new_path = os.path.join(new_dir, old_fname)
@@ -754,7 +873,8 @@ class MainFrame(wx.Frame):
         for (old, new) in paths:
             shutil.copy2(old, new)
             
-        self.build_tree()
+        for parent in set(parents):
+            self.refresh_tree(parent, self.ItemToAbsPath(parent))
         
     def OnFileMove(self, event = None):
         source_items = self.GetMarkedItems()
@@ -770,8 +890,9 @@ class MainFrame(wx.Frame):
             return
         new_dir = self.ItemToAbsPath(items[0])
         # Prepare paths (to make sure we don't have collision)
-        paths = []
+        paths, parents = [], []
         for item in source_items:
+            parents.append(self.tree.GetItemParent(item))
             old_path = self.ItemToAbsPath(item)
             old_fname = self.tree.GetItemText(item, col_tree)
             new_path = os.path.join(new_dir, old_fname)
@@ -793,7 +914,8 @@ class MainFrame(wx.Frame):
         for (old, new) in paths:
             shutil.move(old, new)
             
-        self.build_tree()
+        for parent in set(parents):
+            self.refresh_tree(parent, self.ItemToAbsPath(parent))
     
     def OnClose(self, evnt = None):
         dlg = wx.MessageDialog(self, 'Quit?',
